@@ -3,7 +3,6 @@ package com.acmerobotics.roadrunner.path
 import com.acmerobotics.roadrunner.geometry.Pose2d
 import com.acmerobotics.roadrunner.path.heading.HeadingInterpolator
 import com.acmerobotics.roadrunner.path.heading.TangentInterpolator
-import com.acmerobotics.roadrunner.util.DoubleProgression
 
 /**
  * Path segment composed of a parametric curve and heading interpolator.
@@ -43,8 +42,6 @@ class PathSegment @JvmOverloads constructor(
         Pose2d(curve.internalSecondDeriv(t), interpolator.internalDeriv(s, t))
 
     fun reparam(s: Double) = curve.reparam(s)
-
-    internal fun reparam(s: DoubleProgression) = curve.reparam(s)
 
     /**
      * Returns the start pose.

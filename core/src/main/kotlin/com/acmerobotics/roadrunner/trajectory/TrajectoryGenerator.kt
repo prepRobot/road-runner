@@ -1,11 +1,11 @@
 package com.acmerobotics.roadrunner.trajectory
 
+import com.acmerobotics.roadrunner.geometry.Pose2d
 import com.acmerobotics.roadrunner.geometry.Vector2d
 import com.acmerobotics.roadrunner.path.Path
 import com.acmerobotics.roadrunner.profile.*
-import com.acmerobotics.roadrunner.trajectory.constraints.DriveConstraints
-import com.acmerobotics.roadrunner.trajectory.constraints.TrajectoryConstraints
-import com.acmerobotics.roadrunner.util.DoubleProgression
+import com.acmerobotics.roadrunner.trajectory.constraints.TrajectoryAccelerationConstraint
+import com.acmerobotics.roadrunner.trajectory.constraints.TrajectoryVelocityConstraint
 import com.acmerobotics.roadrunner.util.epsilonEquals
 
 /**
@@ -15,42 +15,51 @@ object TrajectoryGenerator {
 
     private fun generateProfile(
         path: Path,
-        constraints: TrajectoryConstraints,
+        velocityConstraint: TrajectoryVelocityConstraint,
+        accelerationConstraint: TrajectoryAccelerationConstraint,
         start: MotionState,
         goal: MotionState,
         resolution: Double
     ): MotionProfile {
-        return MotionProfileGenerator.generateMotionProfile(start, goal, object : MotionConstraints() {
-            override fun get(s: Double): SimpleMotionConstraints {
+        return MotionProfileGenerator.generateMotionProfile(
+            start,
+            goal,
+            { s ->
                 val t = path.reparam(s)
-                return constraints[
+                velocityConstraint[
                     s,
                     path[s, t],
                     path.deriv(s, t),
-                    path.secondDeriv(s, t)
+                    Pose2d()
                 ]
-            }
-
-            override fun get(s: DoubleProgression) =
-                s.zip(path.reparam(s).asIterable())
-                    .map { (s, t) ->
-                        constraints[
-                            s,
-                            path[s, t],
-                            path.deriv(s, t),
-                            path.secondDeriv(s, t)
-                        ]
-                    }
-        }, resolution)
+            },
+            { s ->
+                val t = path.reparam(s)
+                accelerationConstraint[
+                    s,
+                    path[s, t],
+                    path.deriv(s, t),
+                    Pose2d()
+                ]
+            },
+            resolution
+        )
     }
 
     private fun generateSimpleProfile(
-        constraints: DriveConstraints,
+        maxProfileVel: Double,
+        maxProfileAccel: Double,
+        maxProfileJerk: Double,
         start: MotionState,
         goal: MotionState
     ): MotionProfile {
-        return MotionProfileGenerator.generateSimpleMotionProfile(start, goal,
-            constraints.maxVel, constraints.maxAccel, constraints.maxJerk)
+        return MotionProfileGenerator.generateSimpleMotionProfile(
+            start,
+            goal,
+            maxProfileVel,
+            maxProfileAccel,
+            maxProfileJerk
+        )
     }
 
     // note: this assumes that the profile position is monotonic increasing
@@ -89,7 +98,8 @@ object TrajectoryGenerator {
     /**
      * Generate a dynamic constraint trajectory.
      * @param path path
-     * @param constraints trajectory constraints
+     * @param velocityConstraints trajectory velocity constraints
+     * @param accelerationConstraints trajectory acceleration constraints
      * @param start start motion state
      * @param goal goal motion state
      * @param temporalMarkers temporal markers
@@ -100,7 +110,8 @@ object TrajectoryGenerator {
     @JvmOverloads
     fun generateTrajectory(
         path: Path,
-        constraints: TrajectoryConstraints,
+        velocityConstraint: TrajectoryVelocityConstraint,
+        accelerationConstraint: TrajectoryAccelerationConstraint,
         start: MotionState = MotionState(0.0, 0.0, 0.0),
         goal: MotionState = MotionState(path.length(), 0.0, 0.0),
         temporalMarkers: List<TemporalMarker> = emptyList(),
@@ -108,7 +119,7 @@ object TrajectoryGenerator {
         spatialMarkers: List<SpatialMarker> = emptyList(),
         resolution: Double = 0.25
     ): Trajectory {
-        val profile = generateProfile(path, constraints, start, goal, resolution)
+        val profile = generateProfile(path, velocityConstraint, accelerationConstraint, start, goal, resolution)
         val markers = convertMarkers(path, profile, temporalMarkers, displacementMarkers, spatialMarkers)
         return Trajectory(path, profile, markers)
     }
@@ -116,7 +127,9 @@ object TrajectoryGenerator {
     /**
      * Generate a simple constraint trajectory.
      * @param path path
-     * @param constraints drive constraints
+     * @param maxProfileVel maximum velocity
+     * @param maxProfileAccel maximum acceleration
+     * @param maxProfileJerk maximum jerk
      * @param start start motion state
      * @param goal goal motion state
      * @param temporalMarkers temporal markers
@@ -126,14 +139,16 @@ object TrajectoryGenerator {
     @JvmOverloads
     fun generateSimpleTrajectory(
         path: Path,
-        constraints: DriveConstraints,
+        maxProfileVel: Double,
+        maxProfileAccel: Double,
+        maxProfileJerk: Double,
         start: MotionState = MotionState(0.0, 0.0, 0.0, 0.0),
         goal: MotionState = MotionState(path.length(), 0.0, 0.0, 0.0),
         temporalMarkers: List<TemporalMarker> = emptyList(),
         displacementMarkers: List<DisplacementMarker> = emptyList(),
         spatialMarkers: List<SpatialMarker> = emptyList()
     ): Trajectory {
-        val profile = generateSimpleProfile(constraints, start, goal)
+        val profile = generateSimpleProfile(maxProfileVel, maxProfileAccel, maxProfileJerk, start, goal)
         val markers = convertMarkers(path, profile, temporalMarkers, displacementMarkers, spatialMarkers)
         return Trajectory(path, profile, markers)
     }

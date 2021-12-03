@@ -5,7 +5,7 @@ import com.acmerobotics.roadrunner.geometry.Vector2d
 import com.acmerobotics.roadrunner.path.PathBuilder
 import com.acmerobotics.roadrunner.trajectory.SpatialMarker
 import com.acmerobotics.roadrunner.trajectory.TrajectoryGenerator
-import com.acmerobotics.roadrunner.trajectory.constraints.DriveConstraints
+import com.acmerobotics.roadrunner.trajectory.constraints.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.knowm.xchart.Histogram
@@ -23,7 +23,13 @@ class MarkerTest {
         println("seed: $seed")
         val random = Random(seed)
 
-        val constraints = DriveConstraints(25.0, 50.0, 50.0, 1.0, 1.0, 1.0)
+        val velConstraint = MinVelocityConstraint(
+            listOf(
+                TranslationalVelocityConstraint(25.0),
+                AngularVelocityConstraint(1.0)
+            )
+        )
+        val accelConstraint = ProfileAccelerationConstraint(50.0)
 
         val distances = mutableListOf<Double>()
         val path = PathBuilder(Pose2d(random.nextDouble(), random.nextDouble(), 2 * PI * random.nextDouble()))
@@ -32,9 +38,15 @@ class MarkerTest {
         repeat(trials) {
             val displacement = path.length() * random.nextDouble()
             val position = path[displacement].vec()
-            val trajectory = TrajectoryGenerator.generateTrajectory(path, constraints, spatialMarkers = listOf(
-                SpatialMarker(position) { }
-            ), resolution = 0.01)
+            val trajectory = TrajectoryGenerator.generateTrajectory(
+                path,
+                velConstraint,
+                accelConstraint,
+                spatialMarkers = listOf(
+                    SpatialMarker(position) { }
+                ),
+                resolution = 0.01
+            )
             val distance = position distTo trajectory[trajectory.markers[0].time].vec()
             if (distance > 0.01) {
                 println(position)
@@ -43,9 +55,14 @@ class MarkerTest {
         }
 
         val hist = Histogram(distances, 15)
-        val chart = QuickChart.getChart("Spatial Marker Projection Error",
-            "Error", "Frequency", "Error",
-            hist.getxAxisData(), hist.getyAxisData())
+        val chart = QuickChart.getChart(
+            "Spatial Marker Projection Error",
+            "Error",
+            "Frequency",
+            "Error",
+            hist.getxAxisData(),
+            hist.getyAxisData()
+        )
         GraphUtil.saveGraph("markerError", chart)
 
         GraphUtil.savePath("markerPath", path)

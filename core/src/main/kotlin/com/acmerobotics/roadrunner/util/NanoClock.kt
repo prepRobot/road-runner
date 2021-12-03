@@ -4,6 +4,7 @@ package com.acmerobotics.roadrunner.util
  * Clock interface with nanosecond precision and no guarantee about its origin (that is, this is only suited for
  * measuring relative/elapsed time).
  */
+// interface breaks companion object JVM static modifier
 abstract class NanoClock {
 
     companion object {

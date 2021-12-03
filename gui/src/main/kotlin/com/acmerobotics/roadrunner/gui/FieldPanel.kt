@@ -18,6 +18,7 @@ import javax.swing.Timer
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+
 private const val SPATIAL_RESOLUTION = 2.0 // in
 private const val TEMPORAL_RESOLUTION = 0.025 // sec
 private val FIELD_IMAGE = ImageIO.read(FieldPanel::class.java.getResource("/field.png"))
@@ -133,24 +134,26 @@ class FieldPanel : JPanel() {
         minimumSize = Dimension(250, 250)
         preferredSize = Dimension(500, 500)
 
-        addMouseListener(object : MouseListener {
-            override fun mouseReleased(e: MouseEvent?) {
-            }
+        addMouseListener(
+            object : MouseListener {
+override fun mouseReleased(e: MouseEvent?) {
+}
 
-            override fun mouseEntered(e: MouseEvent?) {
-                startAnimation()
-            }
+override fun mouseEntered(e: MouseEvent?) {
+startAnimation()
+}
 
-            override fun mouseClicked(e: MouseEvent?) {
-            }
+override fun mouseClicked(e: MouseEvent?) {
+}
 
-            override fun mouseExited(e: MouseEvent?) {
-                stopAnimation()
-            }
+override fun mouseExited(e: MouseEvent?) {
+stopAnimation()
+}
 
-            override fun mousePressed(e: MouseEvent?) {
-            }
-        })
+override fun mousePressed(e: MouseEvent?) {
+}
+}
+        )
     }
 
     private fun startAnimation() {
@@ -189,7 +192,9 @@ class FieldPanel : JPanel() {
         fieldTransform.scale(-1.0, 1.0)
 
         // draw field
-        g2d.drawImage(FIELD_IMAGE, offsetX, offsetY, fieldSize, fieldSize, null)
+        g2d.withAlpha(0.25f) {
+            drawImage(FIELD_IMAGE, offsetX, offsetY, fieldSize, fieldSize, null)
+        }
 
         g2d.color = SERIES_COLORS[2]
         g2d.paint = SERIES_COLORS[2]

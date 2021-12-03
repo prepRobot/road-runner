@@ -7,6 +7,11 @@ import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.sqrt
 
+private data class EvaluatedConstraint(
+    val maxVel: Double,
+    val maxAccel: Double
+)
+
 /**
  * Motion profile generator with arbitrary start and end motion states and either dynamic constraints or jerk limiting.
  */
@@ -41,11 +46,11 @@ object MotionProfileGenerator {
         // ensure the goal is always after the start; plan the flipped profile otherwise
         if (goal.x < start.x) {
             return generateSimpleMotionProfile(
-                    start.flipped(),
-                    goal.flipped(),
-                    maxVel,
-                    maxAccel,
-                    maxJerk
+                start.flipped(),
+                goal.flipped(),
+                maxVel,
+                maxAccel,
+                maxJerk
             ).flipped()
         }
 
@@ -55,8 +60,16 @@ object MotionProfileGenerator {
 
             val accelProfile = generateAccelProfile(start, maxVel, maxAccel)
             val decelProfile = generateAccelProfile(
-                    MotionState(goal.x, goal.v, -goal.a, goal.j
-                    ), maxVel, maxAccel, maxJerk)
+                MotionState(
+                    goal.x,
+                    goal.v,
+                    -goal.a,
+                    goal.j
+                ),
+                maxVel,
+                maxAccel,
+                maxJerk
+            )
                     .reversed()
 
             val noCoastProfile = accelProfile + decelProfile
@@ -75,11 +88,11 @@ object MotionProfileGenerator {
                 return if (overshoot) {
                     // TODO: is this most efficient? (do we care?)
                     noCoastProfile + generateSimpleMotionProfile(
-                            noCoastProfile.end(),
-                            goal,
-                            maxVel,
-                            maxAccel,
-                            overshoot = true
+                        noCoastProfile.end(),
+                        goal,
+                        maxVel,
+                        maxAccel,
+                        overshoot = true
                     )
                 } else {
                     // single segment profile
@@ -90,8 +103,11 @@ object MotionProfileGenerator {
                 }
             } else if (start.v > maxVel && goal.v > maxVel) {
                 // decel, accel
-                val roots = solveQuadratic(-maxAccel, 2 * start.v,
-                        (goal.v * goal.v - start.v * start.v) / (2 * maxAccel) - goal.x + start.x)
+                val roots = solveQuadratic(
+                    -maxAccel,
+                    2 * start.v,
+                    (goal.v * goal.v - start.v * start.v) / (2 * maxAccel) - goal.x + start.x
+                )
                 val deltaT1 = roots.filter { it >= 0.0 }.minOrNull()!!
                 val deltaT3 = abs(start.v - goal.v) / maxAccel + deltaT1
 
@@ -101,8 +117,11 @@ object MotionProfileGenerator {
                         .build()
             } else {
                 // accel, decel
-                val roots = solveQuadratic(maxAccel, 2 * start.v,
-                        (start.v * start.v - goal.v * goal.v) / (2 * maxAccel) - goal.x + start.x)
+                val roots = solveQuadratic(
+                    maxAccel,
+                    2 * start.v,
+                    (start.v * start.v - goal.v * goal.v) / (2 * maxAccel) - goal.x + start.x
+                )
                 val deltaT1 = roots.filter { it >= 0.0 }.minOrNull()!!
                 val deltaT3 = abs(start.v - goal.v) / maxAccel + deltaT1
 
@@ -117,8 +136,16 @@ object MotionProfileGenerator {
             // we leverage symmetry here; deceleration profiles are just reversed acceleration ones with the goal
             // acceleration flipped
             val decelerationProfile = generateAccelProfile(
-                    MotionState(goal.x, goal.v, -goal.a, goal.j
-                ), maxVel, maxAccel, maxJerk)
+                MotionState(
+                    goal.x,
+                    goal.v,
+                    -goal.a,
+                    goal.j
+                ),
+                maxVel,
+                maxAccel,
+                maxJerk
+            )
                     .reversed()
 
             val noCoastProfile = accelerationProfile + decelerationProfile
@@ -173,21 +200,21 @@ object MotionProfileGenerator {
                 // constraints are not satisfiable
                 return if (overshoot) {
                     noCoastProfile + generateSimpleMotionProfile(
-                            noCoastProfile.end(),
-                            goal,
-                            maxVel,
-                            maxAccel,
-                            maxJerk,
-                            overshoot = true
+                        noCoastProfile.end(),
+                        goal,
+                        maxVel,
+                        maxAccel,
+                        maxJerk,
+                        overshoot = true
                     )
                 } else {
                     // violate max jerk first
                     generateSimpleMotionProfile(
-                            start,
-                            goal,
-                            maxVel,
-                            maxAccel,
-                            overshoot = false
+                        start,
+                        goal,
+                        maxVel,
+                        maxAccel,
+                        overshoot = false
                     )
                 }
             }
@@ -247,8 +274,11 @@ object MotionProfileGenerator {
 
                     if (newDeltaV2 > 0.0) {
                         // we decelerated too much
-                        val roots = solveQuadratic(-maxJerk, 2 * start.a,
-                                start.v - maxVel - start.a * start.a / (2 * maxJerk))
+                        val roots = solveQuadratic(
+                            -maxJerk,
+                            2 * start.a,
+                            start.v - maxVel - start.a * start.a / (2 * maxJerk)
+                        )
                         val finalDeltaT1 = roots.filter { it >= 0.0 }.minOrNull()!!
                         val finalDeltaT3 = finalDeltaT1 - start.a / maxJerk
 
@@ -268,8 +298,11 @@ object MotionProfileGenerator {
                     }
                 } else {
                     // cut out the constant accel phase and find a shorter delta t1 and delta t3
-                    val roots = solveQuadratic(maxJerk, 2 * start.a,
-                            start.v - maxVel + start.a * start.a / (2 * maxJerk))
+                    val roots = solveQuadratic(
+                        maxJerk,
+                        2 * start.a,
+                        start.v - maxVel + start.a * start.a / (2 * maxJerk)
+                    )
                     val newDeltaT1 = roots.filter { it >= 0.0 }.minOrNull()!!
                     val newDeltaT3 = newDeltaT1 + start.a / maxJerk
 
@@ -303,7 +336,8 @@ object MotionProfileGenerator {
      *
      * @param start start motion state
      * @param goal goal motion state
-     * @param constraints motion constraints
+     * @param velocityConstraints velocity constraints
+     * @param accelerationConstraints acceleration constraints
      * @param resolution separation between constraint samples
      */
     @JvmStatic
@@ -311,17 +345,16 @@ object MotionProfileGenerator {
     fun generateMotionProfile(
         start: MotionState,
         goal: MotionState,
-        constraints: MotionConstraints,
+        velocityConstraint: VelocityConstraint,
+        accelerationConstraint: AccelerationConstraint,
         resolution: Double = 0.25
     ): MotionProfile {
         if (goal.x < start.x) {
             return generateMotionProfile(
                 start.flipped(),
                 goal.flipped(),
-                object : MotionConstraints() {
-                    override fun get(s: Double) = constraints[-s]
-                    override fun get(s: DoubleProgression) = constraints[-s]
-                },
+                { velocityConstraint[-it] },
+                { accelerationConstraint[-it] },
                 resolution
             ).flipped()
         }
@@ -331,7 +364,13 @@ object MotionProfileGenerator {
         val samples = ceil(length / resolution).toInt()
 
         val s = DoubleProgression.fromClosedInterval(0.0, length, samples)
-        val constraintsList = constraints[s + start.x]
+        val constraintsList =
+            (s + start.x).map {
+                EvaluatedConstraint(
+                    velocityConstraint[it],
+                    accelerationConstraint[it]
+                )
+            }
 
         // compute the forward states
         val forwardStates = forwardPass(
@@ -343,7 +382,9 @@ object MotionProfileGenerator {
                 motionState.x + start.x,
                 motionState.v,
                 motionState.a
-            ), dx) }
+            ),
+            dx
+        ) }
             .toMutableList()
 
         // compute the backward states
@@ -359,7 +400,8 @@ object MotionProfileGenerator {
                     goal.x - motionState.x,
                     motionState.v,
                     -motionState.a
-                ), dx
+                ),
+                dx
             )
         }.reversed().toMutableList()
 
@@ -385,8 +427,8 @@ object MotionProfileGenerator {
                 } else {
                     // backward longer
                     backwardStates.add(
-                            i + 1,
-                            Pair(afterDisplacement(backwardStartState, forwardDx), backwardDx - forwardDx)
+                        i + 1,
+                        Pair(afterDisplacement(backwardStartState, forwardDx), backwardDx - forwardDx)
                     )
                     backwardDx = forwardDx
                 }
@@ -462,7 +504,7 @@ object MotionProfileGenerator {
     private fun forwardPass(
         start: MotionState,
         displacements: DoubleProgression,
-        constraints: List<SimpleMotionConstraints>
+        constraints: List<EvaluatedConstraint>
     ): List<Pair<MotionState, Double>> {
         val forwardStates = mutableListOf<Pair<MotionState, Double>>()
 

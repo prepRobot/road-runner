@@ -1,10 +1,10 @@
 package com.acmerobotics.roadrunner.path
 
 import com.acmerobotics.roadrunner.geometry.Vector2d
-import com.acmerobotics.roadrunner.util.DoubleProgression
 import com.acmerobotics.roadrunner.util.epsilonEquals
 import kotlin.math.abs
 import kotlin.math.asin
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 /**
@@ -111,17 +111,13 @@ class QuinticSpline(
         vHi: Vector2d = internalGet(tHi),
         depth: Int = 0
     ) {
-        if (depth >= maxDepth) {
-            return
-        }
-
         val tMid = 0.5 * (tLo + tHi)
         val vMid = internalGet(tMid)
 
         val deltaK = abs(internalCurvature(tLo) - internalCurvature(tHi))
         val segmentLength = approxLength(vLo, vMid, vHi)
 
-        if (deltaK > maxDeltaK || segmentLength > maxSegmentLength) {
+        if (depth < maxDepth && (deltaK > maxDeltaK || segmentLength > maxSegmentLength)) {
             parameterize(tLo, tMid, vLo, vMid, depth + 1)
             parameterize(tMid, tHi, vMid, vHi, depth + 1)
         } else {
@@ -170,35 +166,6 @@ class QuinticSpline(
         return interp(s, sSamples[lo], sSamples[hi], tSamples[lo], tSamples[hi])
     }
 
-    override fun reparam(s: DoubleProgression): DoubleArray {
-        val t = DoubleArray(s.size())
-        var i = 0
-        var sampleIndex = 0
-        var currS = s.start
-        while (i < t.size) {
-            t[i++] = when {
-                currS <= 0.0 -> 0.0
-                currS >= length -> 1.0
-                else -> {
-                    while (sSamples[sampleIndex] < currS) {
-                        sampleIndex++
-                    }
-                    val s0 = sSamples[sampleIndex - 1]
-                    val s1 = sSamples[sampleIndex]
-                    val t0 = tSamples[sampleIndex - 1]
-                    val t1 = tSamples[sampleIndex]
-                    interp(currS, s0, s1, t0, t1)
-                }
-            }
-            currS += s.step
-        }
-        while (i < t.size) {
-            t[i] = 1.0
-            i++
-        }
-        return t
-    }
-
     override fun paramDeriv(t: Double): Double {
         val deriv = internalDeriv(t)
         return 1.0 / sqrt(deriv.x * deriv.x + deriv.y * deriv.y)
@@ -216,13 +183,14 @@ class QuinticSpline(
         val deriv = internalDeriv(t)
         val secondDeriv = internalSecondDeriv(t)
         val thirdDeriv = internalThirdDeriv(t)
-        val firstNumerator = -(deriv.x * secondDeriv.x + deriv.y * secondDeriv.y)
-        val secondNumeratorFirstTerm = secondDeriv.x * secondDeriv.x + secondDeriv.y * secondDeriv.y +
-                deriv.x * thirdDeriv.x + deriv.y * thirdDeriv.y
-        val secondNumeratorSecondTerm = -4.0 * firstNumerator
+
+        val firstNumeratorSqrt = 2.0 * (deriv.x * secondDeriv.x + deriv.y * secondDeriv.y)
+        val secondNumerator = secondDeriv.x * secondDeriv.x + secondDeriv.y * secondDeriv.y +
+            deriv.x * thirdDeriv.x + deriv.y * thirdDeriv.y
+
         val denominator = deriv.x * deriv.x + deriv.y * deriv.y
-        return (secondNumeratorFirstTerm / Math.pow(denominator, 2.5) +
-                secondNumeratorSecondTerm / Math.pow(denominator, 3.5))
+        return firstNumeratorSqrt * firstNumeratorSqrt / denominator.pow(3.5) -
+            secondNumerator / denominator.pow(2.5)
     }
 
     override fun length() = length
